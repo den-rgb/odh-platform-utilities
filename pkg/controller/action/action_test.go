@@ -76,6 +76,7 @@ func TestReconciliationRequest_ZeroValue(t *testing.T) {
 	var rr action.ReconciliationRequest
 
 	assert.Nil(t, rr.Client)
+	assert.Nil(t, rr.Controller)
 	assert.Nil(t, rr.Instance)
 	assert.Nil(t, rr.Deployer)
 	assert.Nil(t, rr.Resources)

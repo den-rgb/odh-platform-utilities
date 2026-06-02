@@ -57,6 +57,8 @@ pkg/
   webhook/         Admission webhook helpers for singleton validation
                    (ValidateSingletonCreation, CountObjects, DenyCountGtZero).
   controller/      Controller utilities.
+    types/         Controller interface — ownership-query contract for
+                   deploy/GC actions (Controller).
     conditions/    Knative-inspired condition management with automatic
                    aggregation, severity-based filtering, Manager pattern,
                    and low-level condition CRUD helpers.
@@ -117,6 +119,9 @@ examples/          Runnable usage examples.
 | `GenerationChangedPredicate` | `pkg/controller/predicates` | Update filter on generation change |
 | `LabelSelectorPredicate` | `pkg/controller/predicates` | Event filter by label selector |
 | `AnnotationChangedPredicate` | `pkg/controller/predicates` | Update filter on single annotation key |
+| `Controller` | `pkg/controller/types` | Ownership-query contract for deploy/GC actions |
+| `Fn` | `pkg/controller/action` | Action-pipeline function signature |
+| `ReconciliationRequest` | `pkg/controller/action` | Shared state for action pipeline steps |
 | `DeletionPredicate` | `pkg/controller/predicates` | Pass only delete events |
 
 ## Build, Test, and Lint Commands
