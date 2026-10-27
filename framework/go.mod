@@ -12,7 +12,7 @@ require (
 	github.com/lburgazzoli/gomega-matchers v0.4.1-0.20260219145423-4061a5fb8799
 	github.com/onsi/gomega v1.39.1
 	github.com/openshift/api v0.0.0-20261002115817-f8795cdde518
-	github.com/openshift/controller-runtime-common v0.0.0-20261005093240-b39eb7218441
+	github.com/openshift/controller-runtime-common v0.0.0-20261026124434-bdfc411d93cd
 	github.com/openshift/library-go v0.0.0-20261001144932-192662696fc7
 	github.com/operator-framework/api v0.42.0
 	github.com/prometheus/client_golang v1.24.0

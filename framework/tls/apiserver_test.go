@@ -91,6 +91,20 @@ func TestFromAPIServer(t *testing.T) { //nolint:funlen // Table-driven APIServer
 		assert.Equal(t, intermediateIANACiphers, cipherSuites)
 	})
 
+	t.Run("scheme missing APIServer registration fails closed", func(t *testing.T) {
+		t.Parallel()
+
+		cli := &erroringClient{
+			Client: fake.NewClientBuilder().WithScheme(scheme).Build(),
+			getErr: runtime.NewNotRegisteredErrForKind("pkg/runtime/scheme.go", schema.GroupVersionKind{
+				Group: "config.openshift.io", Version: "v1", Kind: "APIServer",
+			}),
+		}
+
+		_, _, err := pkgtls.FromAPIServer(ctx, cli, pkgtls.FormatGo)
+		require.Error(t, err)
+	})
+
 	t.Run("APIServer without tlsSecurityProfile uses intermediate defaults", func(t *testing.T) {
 		t.Parallel()
 
@@ -248,6 +262,20 @@ func TestLoad(t *testing.T) { //nolint:funlen // Fallback-policy cases for manag
 		require.NoError(t, err)
 		assert.False(t, result.Watchable)
 		assert.Equal(t, intermediate.MinTLSVersion, result.Spec.MinTLSVersion)
+	})
+
+	t.Run("scheme missing APIServer registration fails closed", func(t *testing.T) {
+		t.Parallel()
+
+		cli := &erroringClient{
+			Client: fake.NewClientBuilder().WithScheme(scheme).Build(),
+			getErr: runtime.NewNotRegisteredErrForKind("pkg/runtime/scheme.go", schema.GroupVersionKind{
+				Group: "config.openshift.io", Version: "v1", Kind: "APIServer",
+			}),
+		}
+
+		_, err := pkgtls.Load(ctx, cli)
+		require.Error(t, err)
 	})
 
 	t.Run("transient error is watchable", func(t *testing.T) {

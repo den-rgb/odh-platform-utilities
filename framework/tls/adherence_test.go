@@ -10,6 +10,7 @@ import (
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -747,6 +748,21 @@ func TestLoadWithAdherence(t *testing.T) { //nolint:funlen // Startup fallback a
 		assert.False(t, result.Watchable)
 		assert.True(t, result.UsedFallback)
 		assert.Equal(t, intermediate.MinTLSVersion, result.Spec.MinTLSVersion)
+	})
+
+	t.Run("scheme missing APIServer registration fails closed", func(t *testing.T) {
+		t.Parallel()
+
+		fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+		cli := &erroringClient{
+			Client: fakeClient,
+			getErr: runtime.NewNotRegisteredErrForKind("pkg/runtime/scheme.go", schema.GroupVersionKind{
+				Group: "config.openshift.io", Version: "v1", Kind: "APIServer",
+			}),
+		}
+
+		_, err := pkgtls.LoadWithAdherence(context.Background(), cli)
+		require.Error(t, err)
 	})
 
 	t.Run("transient error uses intermediate and remains watchable", func(t *testing.T) {
