@@ -15,7 +15,8 @@ func TestConfigFromProfile_TLS12SetsCipherSuites(t *testing.T) {
 	t.Parallel()
 
 	spec := *configv1.TLSProfiles[configv1.TLSProfileIntermediateType]
-	fn, unsupported := pkgtls.ConfigFromProfile(spec)
+	fn, unsupported, err := pkgtls.ConfigFromProfileWithError(spec)
+	require.NoError(t, err)
 	require.NotNil(t, fn)
 	assert.Equal(t, []string{
 		ianaTLS13AES128GCM,
@@ -42,7 +43,8 @@ func TestConfigFromProfile_TLS12DropsTLS13Ciphers(t *testing.T) {
 			openSSLECDHERSAAES128GCM,
 		},
 	}
-	fn, unsupported := pkgtls.ConfigFromProfile(spec)
+	fn, unsupported, err := pkgtls.ConfigFromProfileWithError(spec)
+	require.NoError(t, err)
 	cfg := &tls.Config{}
 	fn(cfg)
 
@@ -54,7 +56,8 @@ func TestConfigFromProfile_TLS13LeavesCipherSuitesUnset(t *testing.T) {
 	t.Parallel()
 
 	spec := *configv1.TLSProfiles[configv1.TLSProfileModernType]
-	fn, unsupported := pkgtls.ConfigFromProfile(spec)
+	fn, unsupported, err := pkgtls.ConfigFromProfileWithError(spec)
+	require.NoError(t, err)
 	require.NotNil(t, fn)
 	assert.Empty(t, unsupported)
 
@@ -72,7 +75,8 @@ func TestConfigFromProfile_UnsupportedCiphersReported(t *testing.T) {
 		MinTLSVersion: configv1.VersionTLS12,
 		Ciphers:       []string{openSSLECDHERSAAES128GCM, openSSLDHERSAAES128GCM},
 	}
-	fn, unsupported := pkgtls.ConfigFromProfile(spec)
+	fn, unsupported, err := pkgtls.ConfigFromProfileWithError(spec)
+	require.NoError(t, err)
 	require.NotNil(t, fn)
 	assert.Equal(t, []string{openSSLDHERSAAES128GCM}, unsupported)
 
@@ -88,7 +92,8 @@ func TestConfigFromProfile_DropsRC4Ciphers(t *testing.T) {
 		MinTLSVersion: configv1.VersionTLS12,
 		Ciphers:       []string{"TLS_RSA_WITH_RC4_128_SHA", openSSLECDHERSAAES128GCM},
 	}
-	fn, unsupported := pkgtls.ConfigFromProfile(spec)
+	fn, unsupported, err := pkgtls.ConfigFromProfileWithError(spec)
+	require.NoError(t, err)
 	require.NotNil(t, fn)
 	assert.ElementsMatch(t, []string{"TLS_RSA_WITH_RC4_128_SHA"}, unsupported)
 
@@ -105,7 +110,8 @@ func TestConfigFromProfile_RetainsImplementedCustomCiphers(t *testing.T) {
 		MinTLSVersion: configv1.VersionTLS12,
 		Ciphers:       []string{"TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA", openSSLECDHERSAAES128GCM},
 	}
-	fn, unsupported := pkgtls.ConfigFromProfile(spec)
+	fn, unsupported, err := pkgtls.ConfigFromProfileWithError(spec)
+	require.NoError(t, err)
 	require.NotNil(t, fn)
 	assert.Empty(t, unsupported)
 
@@ -147,17 +153,19 @@ func TestConfigFromProfileStrict_AcceptsValidProfile(t *testing.T) {
 func TestConfigFromProfile_ReportsMappedButUnimplementedCipher(t *testing.T) {
 	t.Parallel()
 
-	fn, unsupported := pkgtls.ConfigFromProfile(configv1.TLSProfileSpec{
+	fn, unsupported, err := pkgtls.ConfigFromProfileWithError(configv1.TLSProfileSpec{
 		MinTLSVersion: configv1.VersionTLS12,
 		Ciphers:       []string{"DHE-RSA-AES128-GCM-SHA256"},
 	})
+	require.NoError(t, err)
 	require.NotNil(t, fn)
 	assert.Equal(t, []string{"DHE-RSA-AES128-GCM-SHA256"}, unsupported)
 
-	_, unsupported = pkgtls.ConfigFromProfile(configv1.TLSProfileSpec{
+	_, unsupported, err = pkgtls.ConfigFromProfileWithError(configv1.TLSProfileSpec{
 		MinTLSVersion: configv1.VersionTLS12,
 		Ciphers:       []string{"ECDHE-RSA-AES256-SHA384"},
 	})
+	require.NoError(t, err)
 	assert.Equal(t, []string{"ECDHE-RSA-AES256-SHA384"}, unsupported)
 }
 
@@ -165,7 +173,8 @@ func TestConfigFromProfile_TLS10HonorsOldProfile(t *testing.T) {
 	t.Parallel()
 
 	spec := *configv1.TLSProfiles[configv1.TLSProfileOldType]
-	fn, unsupported := pkgtls.ConfigFromProfile(spec)
+	fn, unsupported, err := pkgtls.ConfigFromProfileWithError(spec)
+	require.NoError(t, err)
 	require.NotNil(t, fn)
 	// The TLS 1.3 suites are not configurable below TLS 1.3; the CBC SHA384/
 	// SHA256 suites are pruned by library-go's ciphersUnsupportedByGo map.
@@ -195,7 +204,8 @@ func TestConfigFromProfile_UnknownMinVersionFloorsToTLS12(t *testing.T) {
 		MinTLSVersion: "VersionTLS99",
 		Ciphers:       []string{openSSLECDHERSAAES128GCM},
 	}
-	fn, _ := pkgtls.ConfigFromProfile(spec)
+	fn, _, err := pkgtls.ConfigFromProfileWithError(spec)
+	require.NoError(t, err)
 	cfg := &tls.Config{}
 	fn(cfg)
 	assert.Equal(t, uint16(tls.VersionTLS12), cfg.MinVersion)
@@ -214,7 +224,8 @@ func TestConfigFromProfile_SkipsUnknownGroups(t *testing.T) {
 			configv1.TLSGroupSecP384r1MLKEM1024,
 		},
 	}
-	fn, unsupported := pkgtls.ConfigFromProfile(spec)
+	fn, unsupported, err := pkgtls.ConfigFromProfileWithError(spec)
+	require.NoError(t, err)
 	cfg := &tls.Config{}
 	fn(cfg)
 	assert.Equal(t, []tls.CurveID{tls.X25519, tls.SecP256r1MLKEM768, tls.SecP384r1MLKEM1024}, cfg.CurvePreferences)
@@ -228,8 +239,29 @@ func TestConfigFromProfile_EmptyGroupsLeaveCurvePreferencesUnset(t *testing.T) {
 		MinTLSVersion: configv1.VersionTLS12,
 		Ciphers:       []string{openSSLECDHERSAAES128GCM},
 	}
-	fn, _ := pkgtls.ConfigFromProfile(spec)
+	fn, _, err := pkgtls.ConfigFromProfileWithError(spec)
+	require.NoError(t, err)
 	cfg := &tls.Config{}
 	fn(cfg)
 	assert.Nil(t, cfg.CurvePreferences)
+}
+
+func TestConfigFromProfile_LegacyWrapperDelegates(t *testing.T) {
+	t.Parallel()
+
+	spec := *configv1.TLSProfiles[configv1.TLSProfileIntermediateType]
+
+	legacyFn, legacyUnsupported := pkgtls.ConfigFromProfile(spec)
+	errorFn, errorUnsupported, err := pkgtls.ConfigFromProfileWithError(spec)
+	require.NoError(t, err)
+	require.NotNil(t, legacyFn)
+	require.NotNil(t, errorFn)
+	assert.Equal(t, legacyUnsupported, errorUnsupported)
+
+	legacyCfg, errorCfg := &tls.Config{}, &tls.Config{}
+	legacyFn(legacyCfg)
+	errorFn(errorCfg)
+	assert.Equal(t, errorCfg.MinVersion, legacyCfg.MinVersion)
+	assert.Equal(t, errorCfg.CipherSuites, legacyCfg.CipherSuites)
+	assert.Equal(t, errorCfg.CurvePreferences, legacyCfg.CurvePreferences)
 }

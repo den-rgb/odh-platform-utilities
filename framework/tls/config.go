@@ -2,6 +2,7 @@ package tls
 
 import (
 	"crypto/tls"
+	"fmt"
 	"strings"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -9,10 +10,17 @@ import (
 	ocpcrypto "github.com/openshift/library-go/pkg/crypto"
 )
 
-// ConfigFromProfile returns a function that configures a tls.Config from the
-// given OpenShift TLSProfileSpec, along with cipher and group names the Go
-// crypto/tls stack cannot use for the configured minimum version. The returned
-// function is intended for controller-runtime TLSOpts.
+// ConfigFromProfile converts a TLS profile to tls.Config options, along with
+// cipher and group names the Go crypto/tls stack cannot use for the configured
+// minimum version. The returned function is intended for controller-runtime
+// TLSOpts.
+//
+// It is the legacy compatibility entrypoint: it does not validate the profile
+// (invalid minimum versions are floored to TLS 1.2; unusable ciphers and groups
+// are filtered and reported in the second return value) and it cannot report
+// build failures. New callers should use ConfigFromProfileWithError, which
+// returns an error when no configurer can be built at all; callers must treat
+// that as fail-closed rather than silently downgrading to another profile.
 //
 // CipherSuites are only set when MinVersion is below TLS 1.3, because Go's
 // TLS 1.3 implementation does not allow configuring cipher suites.
@@ -20,6 +28,20 @@ import (
 //
 // Known Groups are mapped onto CurvePreferences; unknown group names are skipped.
 func ConfigFromProfile(profile configv1.TLSProfileSpec) (func(*tls.Config), []string) {
+	tlsConfig, unsupported, _ := ConfigFromProfileWithError(profile)
+	return tlsConfig, unsupported
+}
+
+// ConfigFromProfileWithError converts a TLS profile to tls.Config options,
+// along with cipher and group names the Go crypto/tls stack cannot use for
+// the configured minimum version, and an error when no configurer can be
+// built at all.
+//
+// Like the legacy ConfigFromProfile it does not validate the profile: invalid
+// minimum versions are floored to TLS 1.2, and unusable ciphers and groups are
+// filtered and reported in the second return value. The error cannot result
+// from user-supplied profile values; callers must treat it as fail-closed.
+func ConfigFromProfileWithError(profile configv1.TLSProfileSpec) (func(*tls.Config), []string, error) {
 	_, err := ocpcrypto.TLSVersion(string(profile.MinTLSVersion))
 	if err != nil {
 		profile.MinTLSVersion = configv1.VersionTLS12
@@ -35,8 +57,11 @@ func ConfigFromProfile(profile configv1.TLSProfileSpec) (func(*tls.Config), []st
 	var unsupportedRC4 []string
 	profile.Ciphers, unsupportedRC4 = filterRC4CipherSuites(profile.Ciphers)
 
-	tlsConfig, unsupported := commonTLS.NewTLSConfigFromProfile(profile)
-	return tlsConfig, append(append(unsupported, unsupportedTLS13...), unsupportedRC4...)
+	tlsConfig, unsupported, err := commonTLS.NewTLSConfigFromProfile(profile)
+	if err != nil {
+		return nil, nil, fmt.Errorf("building TLS config from profile: %w", err)
+	}
+	return tlsConfig, append(append(unsupported, unsupportedTLS13...), unsupportedRC4...), nil
 }
 
 // ConfigFromProfileStrict validates a TLS profile before converting it to
@@ -46,8 +71,7 @@ func ConfigFromProfileStrict(profile configv1.TLSProfileSpec) (func(*tls.Config)
 	if err := ValidateStrictTLSProfile(profile); err != nil {
 		return nil, nil, err
 	}
-	tlsConfig, unsupported := ConfigFromProfile(profile)
-	return tlsConfig, unsupported, nil
+	return ConfigFromProfileWithError(profile)
 }
 
 func cipherCode(cipher string) uint16 {
